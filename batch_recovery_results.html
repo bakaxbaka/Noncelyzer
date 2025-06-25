@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Batch Recovery Results - Bitcoin Vulnerability Analyzer</title>
+    <link href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h2">
+                <i class="fas fa-list text-warning me-2"></i>
+                Batch Recovery Results
+            </h1>
+            <a href="{{ url_for('index') }}" class="btn btn-outline-primary">
+                <i class="fas fa-arrow-left me-2"></i>
+                New Analysis
+            </a>
+        </div>
+
+        <!-- Summary -->
+        <div class="card mb-4 border-primary">
+            <div class="card-header bg-primary">
+                <h3 class="card-title mb-0">
+                    <i class="fas fa-chart-bar me-2"></i>
+                    Batch Analysis Summary
+                </h3>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <div class="h3 text-info mb-0">{{ results.total_addresses }}</div>
+                        <small class="text-muted">Total Addresses</small>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="h3 text-danger mb-0">{{ results.vulnerable_addresses }}</div>
+                        <small class="text-muted">Vulnerable</small>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="h3 text-warning mb-0">{{ results.total_keys_recovered }}</div>
+                        <small class="text-muted">Keys Recovered</small>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="h3 text-success mb-0">{{ ((results.vulnerable_addresses / results.total_addresses) * 100)|round(1) }}%</div>
+                        <small class="text-muted">Success Rate</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Critical Alert -->
+        {% if results.vulnerable_addresses > 0 %}
+            <div class="alert alert-danger" role="alert">
+                <h4 class="alert-heading">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    CRITICAL: {{ results.vulnerable_addresses }} Vulnerable Address(es) Found!
+                </h4>
+                <p class="mb-0">
+                    {{ results.total_keys_recovered }} private key(s) recovered from vulnerable addresses.
+                    All affected addresses are completely compromised.
+                </p>
+            </div>
+        {% endif %}
+
+        <!-- Results Table -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-table me-2"></i>
+                    Detailed Results
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-dark table-striped">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Address</th>
+                                <th>Status</th>
+                                <th>Keys Recovered</th>
+                                <th>Signatures</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for result in results.results %}
+                                <tr>
+                                    <td>{{ loop.index }}</td>
+                                    <td>
+                                        <code class="text-info">{{ result.address[:20] }}...</code>
+                                        <a href="https://blockstream.info/address/{{ result.address }}" 
+                                           target="_blank" 
+                                           class="btn btn-sm btn-outline-info ms-1">
+                                            <i class="fas fa-external-link-alt"></i>
+                                        </a>
+                                    </td>
+                                    <td>
+                                        {% if result.get('error') %}
+                                            <span class="badge bg-secondary">Error</span>
+                                        {% elif result.vulnerable %}
+                                            <span class="badge bg-danger">Vulnerable</span>
+                                        {% else %}
+                                            <span class="badge bg-success">Secure</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if result.get('recovered_keys') %}
+                                            <span class="badge bg-warning">{{ result.recovered_keys|length }}</span>
+                                        {% else %}
+                                            <span class="text-muted">0</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ result.get('signatures_analyzed', 'N/A') }}</td>
+                                    <td>
+                                        {% if result.vulnerable and result.get('recovered_keys') %}
+                                            <button class="btn btn-sm btn-outline-warning" 
+                                                    onclick="showAddressDetails({{ loop.index0 }})">
+                                                <i class="fas fa-eye"></i> View Keys
+                                            </button>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- All Recovered Keys Summary -->
+        {% if results.summary.all_recovered_keys %}
+            <div class="card mb-4 border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0">
+                        <i class="fas fa-key me-2"></i>
+                        All Recovered Private Keys ({{ results.summary.all_recovered_keys|length }})
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% for key in results.summary.all_recovered_keys %}
+                        <div class="mb-3 p-3 bg-dark rounded">
+                            <div class="row align-items-center">
+                                <div class="col-md-2">
+                                    <span class="badge bg-danger">
+                                        Key #{{ loop.index }}
+                                    </span>
+                                    {% if key.verified %}
+                                    <br><small class="text-success"><i class="fas fa-check me-1"></i>Verified</small>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-8">
+                                    <h6>WIF Format:</h6>
+                                    <input type="text" 
+                                           class="form-control font-monospace mb-2" 
+                                           value="{{ key.private_key_wif }}" 
+                                           readonly 
+                                           id="batch-wif-{{ loop.index }}">
+                                    <h6>Hex Format:</h6>
+                                    <input type="text" 
+                                           class="form-control font-monospace" 
+                                           value="{{ key.private_key_hex }}" 
+                                           readonly 
+                                           id="batch-hex-{{ loop.index }}">
+                                </div>
+                                <div class="col-md-2">
+                                    <button class="btn btn-outline-secondary btn-sm mb-1" 
+                                            onclick="copyToClipboard('batch-wif-{{ loop.index }}')">
+                                        <i class="fas fa-copy me-1"></i>WIF
+                                    </button>
+                                    <button class="btn btn-outline-secondary btn-sm" 
+                                            onclick="copyToClipboard('batch-hex-{{ loop.index }}')">
+                                        <i class="fas fa-copy me-1"></i>Hex
+                                    </button>
+                                </div>
+                            </div>
+                            <small class="text-muted">
+                                From transactions: 
+                                {% for tx in key.transactions %}
+                                    <code>{{ tx[:8] }}...{{ tx[-8:] }}</code>{% if not loop.last %}, {% endif %}
+                                {% endfor %}
+                            </small>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+
+        <!-- Export Options -->
+        <div class="card mb-4 border-info">
+            <div class="card-header bg-info text-dark">
+                <h5 class="mb-0">
+                    <i class="fas fa-download me-2"></i>
+                    Export Options
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <button class="btn btn-outline-primary w-100 mb-2" onclick="exportBatchResults('json')">
+                            <i class="fas fa-file-code me-1"></i>Export Full Results
+                        </button>
+                    </div>
+                    <div class="col-md-4">
+                        <button class="btn btn-outline-warning w-100 mb-2" onclick="exportRecoveredKeys()">
+                            <i class="fas fa-key me-1"></i>Export Keys Only
+                        </button>
+                    </div>
+                    <div class="col-md-4">
+                        <button class="btn btn-outline-danger w-100 mb-2" onclick="exportVulnerableAddresses()">
+                            <i class="fas fa-exclamation-triangle me-1"></i>Export Vulnerable
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Address Details -->
+    <div class="modal fade" id="addressDetailsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Address Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="addressDetailsContent">
+                    <!-- Content will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <script>
+        const batchResults = {{ results|tojson }};
+        
+        function showAddressDetails(index) {
+            const result = batchResults.results[index];
+            const modal = new bootstrap.Modal(document.getElementById('addressDetailsModal'));
+            const content = document.getElementById('addressDetailsContent');
+            
+            let html = `
+                <h6>Address: ${result.address}</h6>
+                <p><strong>Signatures Analyzed:</strong> ${result.signatures_analyzed}</p>
+                <p><strong>Vulnerabilities Found:</strong> ${result.vulnerabilities_found}</p>
+                <h6>Recovered Private Keys:</h6>
+            `;
+            
+            result.recovered_keys.forEach((key, i) => {
+                html += `
+                    <div class="mb-3 p-2 bg-dark rounded">
+                        <small><strong>Key ${i + 1}:</strong></small><br>
+                        <code>${key.private_key_wif}</code>
+                        <button class="btn btn-sm btn-outline-secondary ms-2" 
+                                onclick="navigator.clipboard.writeText('${key.private_key_wif}')">
+                            Copy
+                        </button>
+                    </div>
+                `;
+            });
+            
+            content.innerHTML = html;
+            modal.show();
+        }
+        
+        function exportBatchResults(format) {
+            if (format === 'json') {
+                downloadFile('batch_recovery_results.json', JSON.stringify(batchResults, null, 2));
+            }
+        }
+        
+        function exportRecoveredKeys() {
+            let content = "Recovered Bitcoin Private Keys\\n";
+            content += "===============================\\n\\n";
+            
+            batchResults.summary.all_recovered_keys.forEach((key, i) => {
+                content += `Key ${i + 1}:\\n`;
+                content += `WIF: ${key.private_key_wif}\\n`;
+                content += `Hex: ${key.private_key_hex}\\n`;
+                content += `Verified: ${key.verified ? 'Yes' : 'No'}\\n`;
+                content += `Transactions: ${key.transactions.join(', ')}\\n\\n`;
+            });
+            
+            downloadFile('recovered_private_keys.txt', content);
+        }
+        
+        function exportVulnerableAddresses() {
+            let content = "Vulnerable Bitcoin Addresses\\n";
+            content += "============================\\n\\n";
+            
+            batchResults.summary.vulnerable_addresses.forEach(address => {
+                content += `${address}\\n`;
+            });
+            
+            downloadFile('vulnerable_addresses.txt', content);
+        }
+        
+        function downloadFile(filename, content) {
+            const element = document.createElement('a');
+            element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(content));
+            element.setAttribute('download', filename);
+            element.style.display = 'none';
+            document.body.appendChild(element);
+            element.click();
+            document.body.removeChild(element);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto Recovery Results - Bitcoin Vulnerability Analyzer</title>
+    <link href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h2">
+                <i class="fas fa-key text-danger me-2"></i>
+                Auto Recovery Results
+            </h1>
+            <a href="{{ url_for('index') }}" class="btn btn-outline-primary">
+                <i class="fas fa-arrow-left me-2"></i>
+                New Analysis
+            </a>
+        </div>
+
+        <!-- Address Info -->
+        <div class="card mb-4 border-danger">
+            <div class="card-header bg-danger">
+                <h3 class="card-title mb-0">
+                    <i class="fab fa-bitcoin text-warning me-2"></i>
+                    Address: {{ results.address }}
+                </h3>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="h2 text-info mb-0">{{ results.signatures_analyzed }}</div>
+                            <small class="text-muted">Signatures Analyzed</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="h2 text-danger mb-0">{{ results.vulnerabilities_found }}</div>
+                            <small class="text-muted">Vulnerabilities</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="h2 text-warning mb-0">{{ results.recovered_keys|length }}</div>
+                            <small class="text-muted">Recovered Keys</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="h2 text-success mb-0">
+                                {{ results.recovered_keys|selectattr('verified')|list|length }}
+                            </div>
+                            <small class="text-muted">Verified Keys</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Critical Alert -->
+        {% if results.vulnerable %}
+            <div class="alert alert-danger" role="alert">
+                <h4 class="alert-heading">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    CRITICAL: Private Keys Recovered!
+                </h4>
+                <p class="mb-0">
+                    {{ results.recovered_keys|length }} private key(s) recovered using ECDSA nonce reuse attack.
+                    This address is completely compromised!
+                </p>
+            </div>
+        {% endif %}
+
+        <!-- Recovered Private Keys -->
+        {% if results.recovered_keys %}
+            {% for key in results.recovered_keys %}
+                <div class="card mb-4 border-warning">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0">
+                            <i class="fas fa-key me-2"></i>
+                            Recovered Private Key #{{ loop.index }}
+                            {% if key.verified %}
+                                <span class="badge bg-success ms-2">VERIFIED</span>
+                            {% else %}
+                                <span class="badge bg-secondary ms-2">UNVERIFIED</span>
+                            {% endif %}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-lock me-2"></i>Private Key (WIF):</h6>
+                                <div class="input-group mb-3">
+                                    <input type="text" 
+                                           class="form-control font-monospace" 
+                                           value="{{ key.private_key_wif }}" 
+                                           readonly 
+                                           id="wif-{{ loop.index }}">
+                                    <button class="btn btn-outline-secondary" 
+                                            type="button" 
+                                            onclick="copyToClipboard('wif-{{ loop.index }}')">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+
+                                <h6><i class="fas fa-hashtag me-2"></i>Private Key (Hex):</h6>
+                                <div class="input-group mb-3">
+                                    <input type="text" 
+                                           class="form-control font-monospace" 
+                                           value="{{ key.private_key_hex }}" 
+                                           readonly 
+                                           id="hex-{{ loop.index }}">
+                                    <button class="btn btn-outline-secondary" 
+                                            type="button" 
+                                            onclick="copyToClipboard('hex-{{ loop.index }}')">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-link me-2"></i>Vulnerable Transactions:</h6>
+                                <div class="mb-3">
+                                    <small class="text-muted">TX1:</small><br>
+                                    <code class="text-info">{{ key.tx1 }}</code>
+                                    <a href="https://blockstream.info/tx/{{ key.tx1 }}" 
+                                       target="_blank" 
+                                       class="btn btn-sm btn-outline-info ms-2">
+                                        <i class="fas fa-external-link-alt"></i>
+                                    </a>
+                                </div>
+                                <div class="mb-3">
+                                    <small class="text-muted">TX2:</small><br>
+                                    <code class="text-info">{{ key.tx2 }}</code>
+                                    <a href="https://blockstream.info/tx/{{ key.tx2 }}" 
+                                       target="_blank" 
+                                       class="btn btn-sm btn-outline-info ms-2">
+                                        <i class="fas fa-external-link-alt"></i>
+                                    </a>
+                                </div>
+
+                                <div class="alert alert-info" role="alert">
+                                    <small>
+                                        <strong>Method:</strong> {{ key.method.replace('_', ' ').title() }}<br>
+                                        <strong>Status:</strong> {{ 'Verified ✓' if key.verified else 'Unverified ✗' }}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Bitcoin Addresses and Balances -->
+                        <div class="mt-3">
+                            <h6><i class="fab fa-bitcoin text-warning me-2"></i>Generated Bitcoin Addresses & Balances</h6>
+                            <div class="row">
+                                {% set address_types = [
+                                    ('compressed_mainnet', 'P2PKH Compressed (Mainnet)'),
+                                    ('uncompressed_mainnet', 'P2PKH Uncompressed (Mainnet)'),
+                                    ('compressed_testnet', 'P2PKH Compressed (Testnet)'),
+                                    ('uncompressed_testnet', 'P2PKH Uncompressed (Testnet)')
+                                ] %}
+
+                                {% for addr_key, address in key.bitcoin_addresses.items() %}
+                                    {% if not address.startswith('Error:') and 'mainnet' in addr_key %}
+                                        <div class="mb-3">
+                                            <h6 class="text-capitalize">
+                                                {% if 'compressed' in addr_key %}
+                                                    <i class="fas fa-compress-alt text-primary me-2"></i>
+                                                {% else %}
+                                                    <i class="fas fa-expand-alt text-secondary me-2"></i>
+                                                {% endif %}
+                                                {{ addr_key.replace('_', ' ').replace('mainnet', '').strip().title() }}
+                                            </h6>
+                                            <div class="input-group mb-2">
+                                                <input type="text" class="form-control font-monospace small" 
+                                                       value="{{ address }}" readonly>
+                                                <button class="btn btn-outline-secondary btn-sm" 
+                                                        onclick="navigator.clipboard.writeText('{{ address }}')">
+                                                    <i class="fas fa-copy"></i>
+                                                </button>
+                                                <a href="https://blockstream.info/address/{{ address }}" 
+                                                   target="_blank" class="btn btn-outline-info btn-sm">
+                                                    <i class="fas fa-external-link-alt"></i>
+                                                </a>
+                                            </div>
+
+                                            <div class="balance-info">
+                                                <div class="row g-2">
+                                                    {% if key.bitcoin_balances and addr_key in key.bitcoin_balances %}
+                                                        {% set balance_info = key.bitcoin_balances[addr_key] %}
+                                                        {% if not balance_info.get('error') %}
+                                                            <div class="col-md-4">
+                                                                <div class="card bg-primary bg-opacity-10 border-primary">
+                                                                    <div class="card-body py-2 px-3">
+                                                                        <div class="text-primary fw-bold">{{ "%.8f"|format(balance_info.balance_btc|default(0)) }}</div>
+                                                                        <small class="text-muted">BTC Balance</small>
+                                                                        {% if balance_info.balance_btc and balance_info.balance_btc > 0 %}
+                                                                            <span class="text-warning">⚠️ HAS FUNDS!</span>
+                                                                        {% endif %}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div class="col-md-4">
+                                                                <div class="card bg-secondary bg-opacity-10 border-secondary">
+                                                                    <div class="card-body py-2 px-3">
+                                                                        <div class="text-warning fw-bold">{{ balance_info.tx_count|default(0) }}</div>
+                                                                        <small class="text-muted">Transactions</small>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div class="col-md-4">
+                                                                <div class="card bg-info bg-opacity-10 border-info">
+                                                                    <div class="card-body py-2 px-3">
+                                                                        <div class="text-info fw-bold">{{ balance_info.balance_satoshis|default(0)|int }}</div>
+                                                                        <small class="text-muted">Satoshis</small>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            {% if balance_info.total_received and balance_info.total_received > 0 %}
+                                                                <div class="col-12 mt-2">
+                                                                    <div class="row g-2">
+                                                                        <div class="col-md-6">
+                                                                            <div class="small text-success">
+                                                                                Total Received: {{ "%.8f"|format(balance_info.total_received / 100000000) }} BTC
+                                                                            </div>
+                                                                        </div>
+                                                                        <div class="col-md-6">
+                                                                            <div class="small text-danger">
+                                                                                Total Sent: {{ "%.8f"|format(balance_info.total_sent / 100000000) }} BTC
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            {% endif %}
+                                                        {% else %}
+                                                            <div class="col-12">
+                                                                <div class="alert alert-warning alert-sm mb-0 py-1" role="alert">
+                                                                    <small>Balance check error: {{ balance_info.error }}</small>
+                                                                </div>
+                                                            </div>
+                                                        {% endif %}
+                                                    {% else %}
+                                                        <div class="col-12">
+                                                            <div class="alert alert-info alert-sm mb-0 py-1" role="alert">
+                                                                <small>Balance information not available</small>
+                                                            </div>
+                                                        {% endif %}
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endif %}
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Ethereum Address and Balance -->
+                        {% if key.ethereum_address %}
+                        <div class="mt-3">
+                            <h6><i class="fab fa-ethereum text-info me-2"></i>Ethereum Address & Balance</h6>
+                            <div class="card bg-dark border-secondary">
+                                <div class="card-body p-2">
+                                    <div class="input-group input-group-sm mb-2">
+                                        <input type="text" 
+                                               class="form-control font-monospace" 
+                                               value="{{ key.ethereum_address }}" 
+                                               readonly 
+                                               id="eth-addr-{{ loop.index }}">
+                                        <button class="btn btn-outline-secondary btn-sm" 
+                                                onclick="copyToClipboard('eth-addr-{{ loop.index }}')">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                        <a href="https://etherscan.io/address/{{ key.ethereum_address }}" 
+                                           target="_blank" 
+                                           class="btn btn-outline-info btn-sm">
+                                            <i class="fas fa-external-link-alt"></i>
+                                        </a>
+                                    </div>
+
+                                    {% if key.ethereum_balance and not key.ethereum_balance.get('error') %}
+                                        <small class="text-muted">
+                                            Balance: {{ key.ethereum_balance.balance_eth }} ETH 
+                                            | TX Count: {{ key.ethereum_balance.tx_count|default(0) }}
+                                            {% if key.ethereum_balance.balance_eth > 0 %}
+                                                <span class="text-warning">⚠️ HAS FUNDS!</span>
+                                            {% endif %}
+                                        </small>
+                                    {% else %}
+                                        <small class="text-warning">Ethereum balance check failed</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Balance Summary -->
+                        {% if key.summary %}
+                        <div class="mt-3">
+                            <div class="alert alert-info" role="alert">
+                                <h6 class="mb-2"><i class="fas fa-chart-pie me-2"></i>Balance Summary</h6>
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <strong>Total BTC:</strong> {{ key.summary.total_btc_balance|default(0) }}
+                                    </div>
+                                    <div class="col-md-4">
+                                        <strong>Active BTC Addresses:</strong> {{ key.summary.active_btc_addresses|default(0) }}
+                                    </div>
+                                    <div class="col-md-4">
+                                        <strong>ETH Balance:</strong> {{ key.summary.ethereum_balance_eth|default(0) }}
+                                    </div>
+                                </div>
+                                {% if key.summary.total_btc_balance > 0 or key.summary.ethereum_balance_eth > 0 %}
+                                    <div class="mt-2 text-danger">
+                                        <strong>🚨 CRITICAL: This private key controls active wallets with funds!</strong>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- STRM Technical Details -->
+                        <details class="mt-3">
+                            <summary class="text-muted" style="cursor: pointer;">
+                                <small><i class="fas fa-calculator me-1"></i>STRM Attack Mathematics</small>
+                            </summary>
+                            <div class="mt-2 p-3 bg-dark rounded">
+                                <small class="font-monospace">
+                                    <div><strong>Formula Used:</strong> Key = ((r × (s₁ - s₂))^(p-2) mod p) × ((m₁ × s₂) - (m₂ × s₁)) mod p</div>
+                                    <hr class="my-2">
+                                    <div><strong>Signature Values:</strong></div>
+                                    <div class="ms-2">r (shared): {{ key.r }}</div>
+                                    <div class="ms-2">s₁: {{ key.s1 }}</div>
+                                    <div class="ms-2">s₂: {{ key.s2 }}</div>
+                                    <div class="ms-2">m₁ (msg hash 1): {{ key.m1 }}</div>
+                                    <div class="ms-2">m₂ (msg hash 2): {{ key.m2 }}</div>
+                                </small>
+                            </div>
+                        </details>
+                    </div>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <!-- Vulnerability Details -->
+        {% if results.vulnerabilities %}
+            <div class="card mb-4 border-secondary">
+                <div class="card-header bg-secondary">
+                    <h5 class="mb-0">
+                        <i class="fas fa-bug me-2"></i>
+                        Vulnerability Analysis
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% for vuln in results.vulnerabilities %}
+                        <div class="alert alert-danger" role="alert">
+                            <h6 class="alert-heading">{{ vuln.type.replace('_', ' ').title() }}</h6>
+                            <p class="mb-2">{{ vuln.description }}</p>
+                            <small>
+                                <strong>Severity:</strong> {{ vuln.severity.upper() }}<br>
+                                <strong>Affected Transactions:</strong> 
+                                {% for tx in vuln.transactions %}
+                                    <code>{{ tx[:16] }}...</code>{% if not loop.last %}, {% endif %}
+                                {% endfor %}
+                            </small>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+
+        <!-- Security Warning -->
+        <div class="alert alert-warning" role="alert">
+            <h6 class="alert-heading">
+                <i class="fas fa-shield-alt me-2"></i>
+                Security Notice
+            </h6>
+            <ul class="mb-0">
+                <li>This address is completely compromised due to ECDSA nonce reuse</li>
+                <li>Any funds sent to this address can be stolen immediately</li>
+                <li>The private keys shown above can control all funds at this address</li>
+                <li>This vulnerability occurred due to poor random number generation</li>
+                <li>Never reuse nonces in ECDSA signature generation</li>
+            </ul>
+        </div>
+
+        <!-- Export Options -->
+        {% if results.recovered_keys %}
+            <div class="card mb-4 border-info">
+                <div class="card-header bg-info text-dark">
+                    <h5 class="mb-0">
+                        <i class="fas fa-download me-2"></i>
+                        Export Options
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <button class="btn btn-outline-primary btn-sm mb-2" onclick="exportAsText()">
+                                <i class="fas fa-file-text me-1"></i>Export as Text
+                            </button>
+                        </div>
+                        <div class="col-md-6">
+                            <button class="btn btn-outline-success btn-sm mb-2" onclick="exportAsJSON()">
+                                <i class="fas fa-file-code me-1"></i>Export as JSON
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <script>
+        // Export functionality
+        function exportAsText() {
+            let content = "Bitcoin Private Keys Recovered via ECDSA Nonce Reuse Attack\\n";
+            content += "Address: {{ results.address }}\\n\\n";
+
+            {% for key in results.recovered_keys %}
+            content += "Private Key #{{ loop.index }}:\\n";
+            content += "WIF: {{ key.private_key_wif }}\\n";
+            content += "Hex: {{ key.private_key_hex }}\\n";
+            content += "Verified: {{ 'Yes' if key.verified else 'No' }}\\n";
+            content += "Transactions: {{ key.tx1 }}, {{ key.tx2 }}\\n\\n";
+            {% endfor %}
+
+            downloadFile('recovered_keys.txt', content);
+        }
+
+        function exportAsJSON() {
+            const data = {{ results|tojson }};
+            downloadFile('recovery_results.json', JSON.stringify(data, null, 2));
+        }
+
+        function downloadFile(filename, content) {
+            const element = document.createElement('a');
+            element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(content));
+            element.setAttribute('download', filename);
+            element.style.display = 'none';
+            document.body.appendChild(element);
+            element.click();
+            document.body.removeChild(element);
+        }
+    </script>
+</body>
+</html>
